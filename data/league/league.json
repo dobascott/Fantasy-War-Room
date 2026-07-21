@@ -1,7 +1,22 @@
 {
   "leagueName": "Fantasy War Room",
   "season": 2026,
-  "teams": 10,
-  "keepers": 3,
-  "draftRounds": 13
+  "numberOfTeams": 10,
+  "keepersPerTeam": 3,
+  "draftRounds": 13,
+
+  "draft": {
+    "date": "2026-09-08",
+    "time": "19:00",
+    "timeZone": "America/Denver"
+  },
+
+  "roster": {
+    "QB": 1,
+    "RB": 2,
+    "WR_TE": 3,
+    "K": 1,
+    "DEF": 1,
+    "Bench": 8
+  }
 }
