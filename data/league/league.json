@@ -1,22 +1,93 @@
 {
+  {
   "leagueName": "Fantasy War Room",
   "season": 2026,
   "numberOfTeams": 10,
   "keepersPerTeam": 3,
   "draftRounds": 13,
+  "totalRosterSize": 16,
 
-  "draft": {
-    "date": "2026-09-08",
-    "time": "19:00",
+  "importantDates": {
+    "keeperDeadline": "2026-09-04",
+    "draftDate": "2026-09-08",
+    "draftTime": "19:00",
     "timeZone": "America/Denver"
   },
 
+  "draftFormat": {
+    "type": "rotating-linear",
+    "description": "The team drafting first in a round moves to last in the next round. Every other team moves up one position.",
+    "roundOneOrder": [
+      {
+        "pick": 1,
+        "owner": "George"
+      },
+      {
+        "pick": 2,
+        "owner": "Jeff"
+      },
+      {
+        "pick": 3,
+        "owner": "Chris"
+      },
+      {
+        "pick": 4,
+        "owner": "Kevin"
+      },
+      {
+        "pick": 5,
+        "owner": "Paw"
+      },
+      {
+        "pick": 6,
+        "owner": "Blake"
+      },
+      {
+        "pick": 7,
+        "owner": "Cherie"
+      },
+      {
+        "pick": 8,
+        "owner": "Brian"
+      },
+      {
+        "pick": 9,
+        "owner": "Nate"
+      },
+      {
+        "pick": 10,
+        "owner": "Scott"
+      }
+    ]
+  },
+
   "roster": {
-    "QB": 1,
-    "RB": 2,
-    "WR_TE": 3,
-    "K": 1,
-    "DEF": 1,
-    "Bench": 8
+    "starters": {
+      "QB": 1,
+      "RB": 2,
+      "WR_TE": 3,
+      "K": 1,
+      "DEF": 1
+    },
+    "bench": 8
+  },
+
+  "keeperRules": {
+    "keepersRequired": 3,
+    "keepersRemovePlayersFromDraftPool": true
+  },
+
+  "waivers": {
+    "transactionCost": 5,
+    "currency": "USD"
+  },
+
+  "draftStrategyDefaults": {
+    "quarterbacksToDraft": 2,
+    "kickersToDraft": 1,
+    "defensesToDraft": 1,
+    "streamKickerOnBye": true,
+    "streamDefenseOnBye": true
   }
+}
 }

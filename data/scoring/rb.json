@@ -1,0 +1,213 @@
+{
+  "position": "RB",
+  "scoringRules": [
+    {
+      "event": "length_of_passing_td",
+      "range": {
+        "min": 0,
+        "max": 49
+      },
+      "points": 9
+    },
+    {
+      "event": "length_of_passing_td",
+      "range": {
+        "min": 50,
+        "max": 110
+      },
+      "points": 12
+    },
+    {
+      "event": "passing_yards",
+      "range": {
+        "min": 0,
+        "max": 99
+      },
+      "points": 0
+    },
+    {
+      "event": "passing_yards",
+      "range": {
+        "min": 100,
+        "max": 199
+      },
+      "points": 7
+    },
+    {
+      "event": "passing_yards",
+      "range": {
+        "min": 200,
+        "max": 299
+      },
+      "points": 14
+    },
+    {
+      "event": "passing_interceptions_thrown",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": -1
+    },
+    {
+      "event": "passing_two_point_conversions",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 5
+    },
+    {
+      "event": "number_of_rushing_tds",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 6
+    },
+    {
+      "event": "rushing_yards",
+      "range": {
+        "min": 0,
+        "max": 49
+      },
+      "points": 0
+    },
+    {
+      "event": "rushing_yards",
+      "range": {
+        "min": 50,
+        "max": 99
+      },
+      "points": 3
+    },
+    {
+      "event": "rushing_yards",
+      "range": {
+        "min": 100,
+        "max": 149
+      },
+      "points": 7
+    },
+    {
+      "event": "rushing_yards",
+      "range": {
+        "min": 150,
+        "max": 199
+      },
+      "points": 10
+    },
+    {
+      "event": "rushing_yards",
+      "range": {
+        "min": 200,
+        "max": 249
+      },
+      "points": 14
+    },
+    {
+      "event": "rushing_yards",
+      "range": {
+        "min": 250,
+        "max": 299
+      },
+      "points": 17
+    },
+    {
+      "event": "rushing_two_point_conversions",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 2
+    },
+    {
+      "event": "number_of_receiving_tds",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 6
+    },
+    {
+      "event": "receiving_yards",
+      "range": {
+        "min": 0,
+        "max": 49
+      },
+      "points": 0
+    },
+    {
+      "event": "receiving_yards",
+      "range": {
+        "min": 50,
+        "max": 99
+      },
+      "points": 3
+    },
+    {
+      "event": "receiving_yards",
+      "range": {
+        "min": 100,
+        "max": 149
+      },
+      "points": 7
+    },
+    {
+      "event": "receiving_yards",
+      "range": {
+        "min": 150,
+        "max": 199
+      },
+      "points": 10
+    },
+    {
+      "event": "receiving_yards",
+      "range": {
+        "min": 200,
+        "max": 249
+      },
+      "points": 13
+    },
+    {
+      "event": "receiving_yards",
+      "range": {
+        "min": 250,
+        "max": 299
+      },
+      "points": 17
+    },
+    {
+      "event": "receiving_two_point_conversions",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 2
+    },
+    {
+      "event": "kickoff_return_touchdowns",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 6
+    },
+    {
+      "event": "punt_return_touchdowns",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 6
+    },
+    {
+      "event": "fumbles_lost",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": -1
+    }
+  ]
+}

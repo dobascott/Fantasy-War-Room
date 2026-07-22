@@ -1,0 +1,53 @@
+{
+  "position": "PK",
+  "scoringRules": [
+    {
+      "event": "length_of_field_goal_made",
+      "range": {
+        "min": 0,
+        "max": 49
+      },
+      "points": 3
+    },
+    {
+      "event": "length_of_field_goal_made",
+      "range": {
+        "min": 50,
+        "max": 54
+      },
+      "points": 4
+    },
+    {
+      "event": "length_of_field_goal_made",
+      "range": {
+        "min": 55,
+        "max": 59
+      },
+      "points": 6
+    },
+    {
+      "event": "length_of_field_goal_made",
+      "range": {
+        "min": 60,
+        "max": 69
+      },
+      "points": 9
+    },
+    {
+      "event": "length_of_field_goal_made",
+      "range": {
+        "min": 70,
+        "max": 79
+      },
+      "points": 12
+    },
+    {
+      "event": "extra_points_made",
+      "range": {
+        "min": 0,
+        "max": 20
+      },
+      "pointsPerOccurrence": 1
+    }
+  ]
+}

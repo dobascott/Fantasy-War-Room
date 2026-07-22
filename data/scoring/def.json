@@ -1,0 +1,53 @@
+{
+  "position": "DEF",
+  "scoringRules": [
+    {
+      "event": "sacks",
+      "range": {
+        "min": 0,
+        "max": 30
+      },
+      "pointsPerOccurrence": 1
+    },
+    {
+      "event": "interceptions",
+      "range": {
+        "min": 0,
+        "max": 20
+      },
+      "pointsPerOccurrence": 1
+    },
+    {
+      "event": "fumble_recoveries",
+      "range": {
+        "min": 0,
+        "max": 20
+      },
+      "pointsPerOccurrence": 1
+    },
+    {
+      "event": "safeties",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 2
+    },
+    {
+      "event": "defensive_touchdowns",
+      "range": {
+        "min": 0,
+        "max": 10
+      },
+      "pointsPerOccurrence": 6
+    },
+    {
+      "event": "points_allowed",
+      "range": {
+        "min": 0,
+        "max": 0
+      },
+      "points": 7
+    }
+  ]
+}``
