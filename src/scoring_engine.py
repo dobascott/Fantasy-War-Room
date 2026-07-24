@@ -17,9 +17,10 @@ def load_scoring_rules(position):
         return json.load(file)
 
 
-# -------- Test the function --------
+def calculate_score(position, stats):
 
-qb_rules = load_scoring_rules("QB")
+    rules = load_scoring_rules(position)
 
-print("Position:", qb_rules["position"])
-print("Rules:", len(qb_rules["scoringRules"]))
+    total_score = 0
+
+    return total_score
