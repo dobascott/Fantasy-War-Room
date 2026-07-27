@@ -23,4 +23,11 @@ def calculate_score(position, stats):
 
     total_score = 0
 
+    for rule in rules["scoringRules"]:
+        print(rule)
+
     return total_score
+
+test_stats = {}
+
+calculate_score("QB", test_stats)
