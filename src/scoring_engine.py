@@ -24,7 +24,19 @@ def calculate_score(position, stats):
     total_score = 0
 
     for rule in rules["scoringRules"]:
-        print(rule)
+
+        event = rule["event"]
+
+        print(event)
+
+        if "points" in rule:
+            print("Fixed Points:", rule["points"])
+
+        if "pointsPerOccurrence" in rule:
+            print(
+                "Points Per Occurrence:",
+                rule["pointsPerOccurrence"]
+            )
 
     return total_score
 
