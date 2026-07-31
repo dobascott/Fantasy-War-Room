@@ -18,28 +18,23 @@ def load_scoring_rules(position):
 
 
 def calculate_score(position, stats):
-
     rules = load_scoring_rules(position)
-
     total_score = 0
 
     for rule in rules["scoringRules"]:
-
         event = rule["event"]
 
-        print(event)
-
-        if "points" in rule:
-            print("Fixed Points:", rule["points"])
-
-        if "pointsPerOccurrence" in rule:
-            print(
-                "Points Per Occurrence:",
-                rule["pointsPerOccurrence"]
-            )
+        if event in stats:
+            print(event, "=", stats[event])
+        else:
+            print(event, "= Not Found")
 
     return total_score
-
-test_stats = {}
-
+test_stats = {
+    "passing_yards": 345,
+    "number_of_passing_tds": 3,
+    "passing_interceptions_thrown": 1,
+    "number_of_rushing_tds": 1,
+    "rushing_yards": 42
+}
 calculate_score("QB", test_stats)
