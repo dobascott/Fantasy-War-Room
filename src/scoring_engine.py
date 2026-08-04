@@ -24,12 +24,34 @@ def calculate_score(position, stats):
     for rule in rules["scoringRules"]:
         event = rule["event"]
 
-        if event in stats:
-            print(event, "=", stats[event])
-        else:
-            print(event, "= Not Found")
+        if event == "passing_yards":
+            player_yards = stats[event]
+
+            minimum = rule["range"]["min"]
+            maximum = rule["range"]["max"]
+
+            if minimum <= player_yards <= maximum:
+                total_score += rule["points"]
+
+                print(
+                    f"{player_yards} yards "
+                    f"matches {minimum}-{maximum}"
+                )
+
+                print(
+                    "Award:",
+                    rule["points"],
+                    "points"
+                )
+
+                print(
+                    "Running Total:",
+                    total_score
+                )
 
     return total_score
+
+
 test_stats = {
     "passing_yards": 345,
     "number_of_passing_tds": 3,
@@ -37,4 +59,5 @@ test_stats = {
     "number_of_rushing_tds": 1,
     "rushing_yards": 42
 }
+
 calculate_score("QB", test_stats)
