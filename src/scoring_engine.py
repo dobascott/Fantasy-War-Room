@@ -44,8 +44,8 @@ def calculate_score(position, stats, show_breakdown=False):
         if not matching_rules:
             continue
 
-        # Events where each occurrence can fall into a different range.
-        # Example: touchdown lengths [12, 38, 62]
+        # Events where each occurrence may fall into a different range.
+        # Example: touchdown lengths or field goal distances.
         if isinstance(stat_value, list):
 
             for occurrence in stat_value:
@@ -65,14 +65,12 @@ def calculate_score(position, stats, show_breakdown=False):
                         else:
                             points = 0
 
-                        if points == 0:
-                            break
+                        if points != 0:
+                            total_score += points
 
-                        total_score += points
-
-                        breakdown.append(
-                            f"{event}: {occurrence} = {points} points"
-                        )
+                            breakdown.append(
+                                f"{event}: {occurrence} = {points} points"
+                            )
 
                         break
 
@@ -87,16 +85,14 @@ def calculate_score(position, stats, show_breakdown=False):
                 if "pointsPerOccurrence" in rule:
                     points_per_occurrence = rule["pointsPerOccurrence"]
 
-                    if points_per_occurrence == 0:
-                        break
+                    if points_per_occurrence != 0:
+                        points = stat_value * points_per_occurrence
+                        total_score += points
 
-                    points = stat_value * points_per_occurrence
-                    total_score += points
-
-                    breakdown.append(
-                        f"{event}: {stat_value} x "
-                        f"{points_per_occurrence} = {points} points"
-                    )
+                        breakdown.append(
+                            f"{event}: {stat_value} x "
+                            f"{points_per_occurrence} = {points} points"
+                        )
 
                     break
 
@@ -104,15 +100,13 @@ def calculate_score(position, stats, show_breakdown=False):
                 if minimum <= stat_value <= maximum:
                     points = rule.get("points", 0)
 
-                    if points == 0:
-                        break
+                    if points != 0:
+                        total_score += points
 
-                    total_score += points
-
-                    breakdown.append(
-                        f"{event}: {stat_value} "
-                        f"({minimum}-{maximum}) = {points} points"
-                    )
+                        breakdown.append(
+                            f"{event}: {stat_value} "
+                            f"({minimum}-{maximum}) = {points} points"
+                        )
 
                     break
 
@@ -128,10 +122,6 @@ def calculate_score(position, stats, show_breakdown=False):
 
     return total_score
 
-
-# ------------------------------------------------------------
-# Temporary QB validation test
-# ------------------------------------------------------------
 
 if __name__ == "__main__":
 
