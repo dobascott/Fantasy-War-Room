@@ -1,12 +1,21 @@
-import json
-from pathlib import Path
-
 import streamlit as st
 
 from src.player_loader import load_player_rankings
 from src.scoring_engine import calculate_score
-from src.draft_engine import generate_draft_order
-from src.draft_store import load_draft_history, save_draft_history
+from src.draft_engine import (
+    generate_draft_order,
+    get_keeper_summary,
+)
+from src.draft_store import (
+    load_draft_history,
+    save_draft_history,
+    reset_draft_history,
+    load_keepers,
+    save_keepers,
+)
+from src.recommendation_engine import (
+    recommend_scott_pick,
+)
 
 
 # ============================================================
@@ -21,21 +30,7 @@ st.set_page_config(
 
 
 # ============================================================
-# PATHS
-# ============================================================
-
-project_root = Path(__file__).resolve().parent
-
-keepers_file = (
-    project_root
-    / "data"
-    / "league"
-    / "keepers.json"
-)
-
-
-# ============================================================
-# LEAGUE / DRAFT CONFIGURATION
+# LEAGUE CONFIGURATION
 # ============================================================
 
 owners = [
@@ -52,11 +47,6 @@ owners = [
 ]
 
 number_of_rounds = 13
-
-draft_order = generate_draft_order(
-    owners=owners,
-    rounds=number_of_rounds
-)
 
 
 # ============================================================
@@ -76,25 +66,80 @@ players["position"] = (
     )
 )
 
+players = (
+    players
+    .sort_values("rank")
+    .copy()
+)
+
+all_player_names = (
+    players["player"]
+    .tolist()
+)
+
 
 # ============================================================
-# LOAD KEEPERS
+# FLASH MESSAGE
 # ============================================================
 
-with open(
-    keepers_file,
-    "r",
-    encoding="utf-8"
-) as file:
-    keeper_data = json.load(file)
+if "flash_message" not in st.session_state:
+
+    st.session_state.flash_message = None
 
 
-keepers = keeper_data["keepers"]
+# ============================================================
+# LOAD / CACHE KEEPERS
+# ============================================================
+#
+# IMPORTANT:
+#
+# Google Sheets is read ONLY when this Streamlit
+# session first starts.
+#
+# Every rerun after that uses the cached keeper list
+# stored in st.session_state.
+#
+# This prevents rapid draft entry from exhausting
+# the Google Sheets read-request quota.
+# ============================================================
+
+if "keepers" not in st.session_state:
+
+    try:
+
+        st.session_state.keepers = (
+            load_keepers()
+        )
+
+        st.session_state.keeper_store_status = (
+            "CONNECTED"
+        )
+
+        st.session_state.keeper_store_error = (
+            None
+        )
+
+    except Exception as error:
+
+        st.session_state.keepers = []
+
+        st.session_state.keeper_store_status = (
+            "ERROR"
+        )
+
+        st.session_state.keeper_store_error = (
+            str(error)
+        )
+
+
+keepers = st.session_state.keepers
+
 
 keeper_names = [
     keeper["player"]
     for keeper in keepers
 ]
+
 
 scott_keeper_names = [
     keeper["player"]
@@ -104,12 +149,30 @@ scott_keeper_names = [
 
 
 # ============================================================
-# LOAD PERSISTENT DRAFT STATE
+# GENERATE DRAFT ORDER
+# ============================================================
+
+draft_order = generate_draft_order(
+    owners=owners,
+    rounds=number_of_rounds,
+    keepers=keepers
+)
+
+
+keeper_summary = get_keeper_summary(
+    owners=owners,
+    keepers=keepers
+)
+
+
+# ============================================================
+# LOAD / CACHE DRAFT HISTORY
 # ============================================================
 
 if "draft_history" not in st.session_state:
 
     try:
+
         st.session_state.draft_history = (
             load_draft_history()
         )
@@ -118,7 +181,9 @@ if "draft_history" not in st.session_state:
             "CONNECTED"
         )
 
-        st.session_state.draft_store_error = None
+        st.session_state.draft_store_error = (
+            None
+        )
 
     except Exception as error:
 
@@ -128,13 +193,9 @@ if "draft_history" not in st.session_state:
             "ERROR"
         )
 
-        st.session_state.draft_store_error = str(
-            error
+        st.session_state.draft_store_error = (
+            str(error)
         )
-
-
-if "flash_message" not in st.session_state:
-    st.session_state.flash_message = None
 
 
 draft_history = (
@@ -163,21 +224,24 @@ scott_drafted_names = [
 # CURRENT DRAFT POSITION
 # ============================================================
 
-current_pick_index = len(
+current_sequence_index = len(
     draft_history
 )
 
+
 draft_complete = (
-    current_pick_index
+    current_sequence_index
     >= len(draft_order)
 )
 
 
 if not draft_complete:
 
-    current_pick = draft_order[
-        current_pick_index
-    ]
+    current_pick = (
+        draft_order[
+            current_sequence_index
+        ]
+    )
 
     current_owner = (
         current_pick["owner"]
@@ -187,18 +251,11 @@ if not draft_complete:
         current_pick["round"]
     )
 
-    current_overall_pick = (
-        current_pick["overall_pick"]
-    )
-
-    current_pick_in_round = (
-        current_pick["pick_in_round"]
-    )
-
 else:
 
     current_pick = None
     current_owner = None
+    current_round = None
 
 
 # ============================================================
@@ -219,7 +276,7 @@ available_players = players[
 
 
 # ============================================================
-# SCOTT'S TEAM
+# SCOTT TEAM
 # ============================================================
 
 scott_team_names = (
@@ -239,15 +296,18 @@ my_team = players[
 # HEADER
 # ============================================================
 
-st.title("🏈 Fantasy War Room")
+st.title(
+    "🏈 Fantasy War Room"
+)
 
 st.subheader(
     "2026 Draft Decision Engine"
 )
 
 st.write(
-    "Live draft tracking, roster management, "
-    "player availability, and persistent draft state."
+    "Live draft tracking, keeper management, "
+    "roster management, supplemental picks, "
+    "recommendations, and persistent draft state."
 )
 
 
@@ -255,12 +315,12 @@ st.write(
 # STATUS
 # ============================================================
 
-status_col1, status_col2, status_col3, status_col4, status_col5 = (
+status1, status2, status3, status4, status5 = (
     st.columns(5)
 )
 
 
-with status_col1:
+with status1:
 
     st.metric(
         "Scoring Engine",
@@ -268,7 +328,7 @@ with status_col1:
     )
 
 
-with status_col2:
+with status2:
 
     st.metric(
         "Keepers Loaded",
@@ -276,7 +336,7 @@ with status_col2:
     )
 
 
-with status_col3:
+with status3:
 
     st.metric(
         "Draft Picks Recorded",
@@ -284,7 +344,7 @@ with status_col3:
     )
 
 
-with status_col4:
+with status4:
 
     st.metric(
         "Players Remaining",
@@ -292,11 +352,26 @@ with status_col4:
     )
 
 
-with status_col5:
+with status5:
 
     st.metric(
         "Draft State",
         st.session_state.draft_store_status
+    )
+
+
+# ============================================================
+# STORAGE ERRORS
+# ============================================================
+
+if (
+    st.session_state.keeper_store_status
+    == "ERROR"
+):
+
+    st.error(
+        "Keeper storage error: "
+        f"{st.session_state.keeper_store_error}"
     )
 
 
@@ -306,10 +381,14 @@ if (
 ):
 
     st.error(
-        "Google Sheets draft-state connection failed: "
+        "Draft storage error: "
         f"{st.session_state.draft_store_error}"
     )
 
+
+# ============================================================
+# FLASH MESSAGE
+# ============================================================
 
 if st.session_state.flash_message:
 
@@ -317,7 +396,397 @@ if st.session_state.flash_message:
         st.session_state.flash_message
     )
 
-    st.session_state.flash_message = None
+    st.session_state.flash_message = (
+        None
+    )
+
+
+st.divider()
+
+
+# ============================================================
+# LEAGUE KEEPERS
+# ============================================================
+
+with st.expander(
+    "🔒 League Keepers — View / Edit",
+    expanded=False
+):
+
+    st.write(
+        "Each team may keep up to three players."
+    )
+
+    st.caption(
+        "Unused keeper slots automatically create "
+        "supplemental picks: S1, S2 and/or S3."
+    )
+
+
+    existing_by_owner = {
+        owner: []
+        for owner in owners
+    }
+
+
+    for keeper in keepers:
+
+        owner = keeper["owner"]
+        player = keeper["player"]
+
+        if owner in existing_by_owner:
+
+            existing_by_owner[
+                owner
+            ].append(
+                player
+            )
+
+
+    keeper_selections = {}
+
+
+    for owner in owners:
+
+        st.markdown(
+            f"### {owner}"
+        )
+
+        keeper_columns = (
+            st.columns(3)
+        )
+
+        keeper_selections[
+            owner
+        ] = []
+
+
+        current_owner_keepers = (
+            existing_by_owner.get(
+                owner,
+                []
+            )
+        )
+
+
+        for slot in range(3):
+
+            current_player = ""
+
+
+            if slot < len(
+                current_owner_keepers
+            ):
+
+                current_player = (
+                    current_owner_keepers[
+                        slot
+                    ]
+                )
+
+
+            options = (
+                ["-- None --"]
+                + all_player_names
+            )
+
+
+            if (
+                current_player
+                and current_player
+                in options
+            ):
+
+                default_index = (
+                    options.index(
+                        current_player
+                    )
+                )
+
+            else:
+
+                default_index = 0
+
+
+            with keeper_columns[slot]:
+
+                selection = (
+                    st.selectbox(
+                        f"Keeper "
+                        f"{slot + 1}",
+                        options,
+                        index=default_index,
+                        key=(
+                            f"keeper_"
+                            f"{owner}_"
+                            f"{slot}"
+                        )
+                    )
+                )
+
+
+            if (
+                selection
+                != "-- None --"
+            ):
+
+                keeper_selections[
+                    owner
+                ].append(
+                    selection
+                )
+
+
+        keeper_count = len(
+            keeper_selections[
+                owner
+            ]
+        )
+
+
+        if keeper_count == 3:
+
+            st.caption(
+                "Supplemental picks: None"
+            )
+
+        elif keeper_count == 2:
+
+            st.caption(
+                "Supplemental picks: S3"
+            )
+
+        elif keeper_count == 1:
+
+            st.caption(
+                "Supplemental picks: S2, S3"
+            )
+
+        else:
+
+            st.caption(
+                "Supplemental picks: S1, S2, S3"
+            )
+
+
+        st.divider()
+
+
+    # --------------------------------------------------------
+    # SAVE KEEPERS
+    # --------------------------------------------------------
+
+    if st.button(
+        "Save League Keepers",
+        type="primary"
+    ):
+
+        new_keeper_list = []
+
+        player_owners = {}
+
+
+        for owner in owners:
+
+            for player_name in (
+                keeper_selections[
+                    owner
+                ]
+            ):
+
+                new_keeper_list.append(
+                    {
+                        "owner":
+                            owner,
+
+                        "player":
+                            player_name
+                    }
+                )
+
+
+                if (
+                    player_name
+                    not in player_owners
+                ):
+
+                    player_owners[
+                        player_name
+                    ] = []
+
+
+                player_owners[
+                    player_name
+                ].append(
+                    owner
+                )
+
+
+        # ----------------------------------------------------
+        # DUPLICATE CHECK
+        # ----------------------------------------------------
+
+        duplicate_details = []
+
+
+        for (
+            player_name,
+            assigned_owners
+        ) in player_owners.items():
+
+            if (
+                len(
+                    assigned_owners
+                ) > 1
+            ):
+
+                duplicate_details.append(
+                    f"{player_name}: "
+                    + ", ".join(
+                        assigned_owners
+                    )
+                )
+
+
+        selected_players = list(
+            player_owners.keys()
+        )
+
+
+        # ----------------------------------------------------
+        # KEEPER / DRAFT CONFLICT CHECK
+        # ----------------------------------------------------
+
+        keeper_drafted_conflicts = (
+            sorted(
+                set(
+                    selected_players
+                )
+                & set(
+                    drafted_names
+                )
+            )
+        )
+
+
+        if duplicate_details:
+
+            st.error(
+                "A player cannot be kept by "
+                "more than one team. "
+                "Duplicate assignment(s): "
+                + " | ".join(
+                    duplicate_details
+                )
+            )
+
+
+        elif keeper_drafted_conflicts:
+
+            st.error(
+                "These players already appear "
+                "in Draft History and cannot "
+                "also be keepers: "
+                + ", ".join(
+                    keeper_drafted_conflicts
+                )
+            )
+
+
+        else:
+
+            try:
+
+                save_keepers(
+                    new_keeper_list
+                )
+
+                # IMPORTANT:
+                #
+                # Update our LOCAL SESSION CACHE immediately.
+                # We do NOT reread Google Sheets.
+                st.session_state.keepers = (
+                    new_keeper_list
+                )
+
+                st.session_state.keeper_store_status = (
+                    "CONNECTED"
+                )
+
+                st.session_state.keeper_store_error = (
+                    None
+                )
+
+                st.session_state.flash_message = (
+                    "League keepers saved. "
+                    f"{len(new_keeper_list)} "
+                    "keepers loaded."
+                )
+
+                st.rerun()
+
+
+            except Exception as error:
+
+                st.session_state.keeper_store_status = (
+                    "ERROR"
+                )
+
+                st.session_state.keeper_store_error = (
+                    str(error)
+                )
+
+                st.error(
+                    "Keeper save failed."
+                )
+
+                st.exception(
+                    error
+                )
+
+
+st.divider()
+
+
+# ============================================================
+# SUPPLEMENTAL PICK SUMMARY
+# ============================================================
+
+with st.expander(
+    "➕ Supplemental Pick Summary",
+    expanded=False
+):
+
+    for team in keeper_summary:
+
+        supplemental = (
+            team[
+                "supplemental_picks"
+            ]
+        )
+
+
+        if supplemental:
+
+            supplemental_text = (
+                ", ".join(
+                    supplemental
+                )
+            )
+
+        else:
+
+            supplemental_text = (
+                "None"
+            )
+
+
+        st.write(
+            f"**{team['owner']}** — "
+            f"{team['keeper_count']} keepers — "
+            f"Supplemental: "
+            f"{supplemental_text}"
+        )
 
 
 st.divider()
@@ -327,28 +796,66 @@ st.divider()
 # CURRENT PICK
 # ============================================================
 
-st.subheader("🎯 Current Pick")
+st.subheader(
+    "🎯 Current Pick"
+)
 
 
 if not draft_complete:
 
-    if current_owner == "Scott":
+    # --------------------------------------------------------
+    # SUPPLEMENTAL PICK
+    # --------------------------------------------------------
+
+    if (
+        current_pick["pick_type"]
+        == "supplemental"
+    ):
+
+        st.warning(
+            f"➕ SUPPLEMENTAL PICK "
+            f"{current_pick['pick_label']} — "
+            f"{current_owner} is on the clock"
+        )
+
+        st.caption(
+            f"End of Round "
+            f"{current_round}"
+        )
+
+
+    # --------------------------------------------------------
+    # SCOTT NORMAL PICK
+    # --------------------------------------------------------
+
+    elif current_owner == "Scott":
 
         st.warning(
             f"🔥 SCOTT IS ON THE CLOCK — "
-            f"Round {current_round}, "
+            f"Round "
+            f"{current_round}, "
             f"Overall Pick "
-            f"#{current_overall_pick}"
+            f"#{current_pick['overall_pick']}"
         )
+
+
+    # --------------------------------------------------------
+    # OTHER NORMAL PICK
+    # --------------------------------------------------------
 
     else:
 
         st.info(
-            f"Round {current_round} — "
+            f"Round "
+            f"{current_round} — "
             f"Overall Pick "
-            f"#{current_overall_pick}"
+            f"#{current_pick['overall_pick']}"
         )
 
+
+    # --------------------------------------------------------
+    # PICK METRICS
+    # --------------------------------------------------------
 
     pick_col1, pick_col2, pick_col3 = (
         st.columns(3)
@@ -374,20 +881,120 @@ if not draft_complete:
     with pick_col3:
 
         st.metric(
-            "Pick In Round",
-            current_pick_in_round
+            "Pick",
+            current_pick[
+                "pick_label"
+            ]
         )
 
 
-    # --------------------------------------------------------
-    # HOW MANY PICKS UNTIL SCOTT?
-    # --------------------------------------------------------
+    # ========================================================
+    # SCOTT RECOMMENDATIONS
+    # ========================================================
+
+    if current_owner == "Scott":
+
+        recommendations = (
+            recommend_scott_pick(
+                available_players=(
+                    available_players
+                ),
+                my_team=my_team,
+                current_round=(
+                    current_round
+                ),
+                current_sequence_index=(
+                    current_sequence_index
+                ),
+                draft_order=(
+                    draft_order
+                ),
+                top_n=5
+            )
+        )
+
+
+        st.write(
+            "### 🔥 Scott Recommendations"
+        )
+
+
+        for number, recommendation in enumerate(
+            recommendations,
+            start=1
+        ):
+
+            st.markdown(
+    f"### {number}. "
+    f"{recommendation['player']} "
+    f"({recommendation['position']} — "
+    f"{recommendation['team']})"
+)
+
+
+            st.write(
+                f"Rank #{recommendation['rank']} | "
+                f"{recommendation['position_rank']} | "
+                f"ADP {recommendation['average_adp']} | "
+                f"VOR {recommendation['vor']}"
+            )
+
+            st.write(
+                f"Wait Risk: {recommendation['wait_risk']} | "
+                f"Wait Cost: {recommendation['wait_cost']} | "
+                f"Likely Replacement: "
+                f"{recommendation['replacement_player']}"
+            )
+
+            if recommendation["gem_label"]:
+                st.write(
+                    f"💎 Market Value: "
+                    f"{recommendation['gem_label']}"
+                )
+
+            st.write(
+                f"Recommendation Score: "
+                f"{recommendation['recommendation_score']}"
+            )
+
+
+            if recommendation[
+                "reasons"
+            ]:
+
+                for reason in (
+                    recommendation[
+                        "reasons"
+                    ]
+                ):
+
+                    st.caption(
+                        f"• {reason}"
+                    )
+
+
+            st.divider()
+
+
+    # ========================================================
+    # DISTANCE UNTIL NEXT SCOTT PICK
+    # ========================================================
 
     future_scott_pick = None
+    future_scott_index = None
 
-    for future_pick in draft_order[
-        current_pick_index:
-    ]:
+
+    for future_index in range(
+        current_sequence_index,
+        len(draft_order)
+    ):
+
+        future_pick = (
+            draft_order[
+                future_index
+            ]
+        )
+
 
         if (
             future_pick["owner"]
@@ -398,48 +1005,58 @@ if not draft_complete:
                 future_pick
             )
 
+            future_scott_index = (
+                future_index
+            )
+
             break
 
 
-    if future_scott_pick:
+    if (
+        future_scott_pick
+        and current_owner
+        != "Scott"
+    ):
 
-        picks_until_scott = (
-            future_scott_pick[
-                "overall_pick"
-            ]
-            - current_overall_pick
+        selections_until_scott = (
+            future_scott_index
+            - current_sequence_index
         )
 
 
-        if current_owner != "Scott":
-
-            st.caption(
-                f"Scott is "
-                f"{picks_until_scott} "
-                f"selection(s) away — "
-                f"Overall Pick "
-                f"#{future_scott_pick['overall_pick']}."
-            )
+        st.caption(
+            f"Scott is "
+            f"{selections_until_scott} "
+            f"selection(s) away — "
+            f"Pick "
+            f"{future_scott_pick['pick_label']}."
+        )
 
 
-    # --------------------------------------------------------
-    # UPCOMING OWNERS
-    # --------------------------------------------------------
+    # ========================================================
+    # UP NEXT
+    # ========================================================
 
-    st.write("### Up Next")
+    st.write(
+        "### Up Next"
+    )
 
 
-    upcoming_picks = draft_order[
-        current_pick_index + 1:
-        current_pick_index + 4
-    ]
+    upcoming_picks = (
+        draft_order[
+            current_sequence_index + 1:
+            current_sequence_index + 4
+        ]
+    )
 
 
     if upcoming_picks:
 
         upcoming_columns = (
             st.columns(
-                len(upcoming_picks)
+                len(
+                    upcoming_picks
+                )
             )
         )
 
@@ -456,18 +1073,20 @@ if not draft_complete:
                 )
 
                 st.caption(
-                    f"Overall "
-                    f"#{upcoming['overall_pick']}"
+                    f"Pick "
+                    f"{upcoming['pick_label']}"
                 )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # PLAYER SELECTION
-    # --------------------------------------------------------
+    # ========================================================
 
     draft_player_options = (
         available_players
-        .sort_values("rank")["player"]
+        .sort_values("rank")[
+            "player"
+        ]
         .tolist()
     )
 
@@ -481,16 +1100,18 @@ if not draft_complete:
     )
 
 
-    button_col1, button_col2, button_col3 = (
-        st.columns([1, 1, 4])
+    button1, button2, spacer = (
+        st.columns(
+            [1, 1, 4]
+        )
     )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # RECORD PICK
-    # --------------------------------------------------------
+    # ========================================================
 
-    with button_col1:
+    with button1:
 
         if st.button(
             "Record Pick",
@@ -498,14 +1119,35 @@ if not draft_complete:
         ):
 
             new_pick = {
+                "sequence_number":
+                    current_pick[
+                        "sequence_number"
+                    ],
+
+                "pick_type":
+                    current_pick[
+                        "pick_type"
+                    ],
+
+                "pick_label":
+                    current_pick[
+                        "pick_label"
+                    ],
+
                 "overall_pick":
-                    current_overall_pick,
+                    current_pick[
+                        "overall_pick"
+                    ],
 
                 "round":
-                    current_round,
+                    current_pick[
+                        "round"
+                    ],
 
                 "pick_in_round":
-                    current_pick_in_round,
+                    current_pick[
+                        "pick_in_round"
+                    ],
 
                 "owner":
                     current_owner,
@@ -530,8 +1172,14 @@ if not draft_complete:
                     "CONNECTED"
                 )
 
+                st.session_state.draft_store_error = (
+                    None
+                )
+
                 st.session_state.flash_message = (
-                    f"Pick #{current_overall_pick} saved: "
+                    f"Pick "
+                    f"{current_pick['pick_label']} "
+                    f"saved: "
                     f"{current_owner} selected "
                     f"{selected_draft_player}."
                 )
@@ -541,35 +1189,40 @@ if not draft_complete:
 
             except Exception as error:
 
-                # Roll back the pick if it could
-                # not be saved persistently.
-
+                # Roll back local state if
+                # persistence fails.
                 st.session_state.draft_history.pop()
 
                 st.session_state.draft_store_status = (
                     "ERROR"
                 )
 
-                st.error(
-                    "The pick was NOT recorded because "
-                    "Google Sheets could not be updated."
+                st.session_state.draft_store_error = (
+                    str(error)
                 )
 
-                st.exception(error)
+                st.error(
+                    "Pick was NOT saved."
+                )
+
+                st.exception(
+                    error
+                )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # UNDO LAST PICK
-    # --------------------------------------------------------
+    # ========================================================
 
-    with button_col2:
+    with button2:
 
         if st.button(
             "Undo Last Pick"
         ):
 
             if (
-                st.session_state.draft_history
+                st.session_state
+                .draft_history
             ):
 
                 removed_pick = (
@@ -590,9 +1243,13 @@ if not draft_complete:
                         "CONNECTED"
                     )
 
+                    st.session_state.draft_store_error = (
+                        None
+                    )
+
                     st.session_state.flash_message = (
                         f"Undid Pick "
-                        f"#{removed_pick['overall_pick']}: "
+                        f"{removed_pick['pick_label']}: "
                         f"{removed_pick['owner']} — "
                         f"{removed_pick['player']}."
                     )
@@ -602,9 +1259,8 @@ if not draft_complete:
 
                 except Exception as error:
 
-                    # Restore the pick if Google
-                    # Sheets could not be updated.
-
+                    # Restore local state if the
+                    # Google update fails.
                     st.session_state.draft_history.append(
                         removed_pick
                     )
@@ -613,36 +1269,106 @@ if not draft_complete:
                         "ERROR"
                     )
 
-                    st.error(
-                        "Undo failed because Google "
-                        "Sheets could not be updated."
+                    st.session_state.draft_store_error = (
+                        str(error)
                     )
 
-                    st.exception(error)
+                    st.error(
+                        "Undo failed."
+                    )
+
+                    st.exception(
+                        error
+                    )
 
 
 else:
 
     st.success(
-        "🏆 Draft Complete — "
-        "all 130 selections have been recorded."
+        "🏆 Draft Complete."
     )
 
 
+st.divider()
+
+
 # ============================================================
-# LAST PICK
+# RESET DRAFT
 # ============================================================
 
-if draft_history:
+with st.expander(
+    "🔄 Reset Draft",
+    expanded=False
+):
 
-    last_pick = draft_history[-1]
-
-    st.success(
-        f"Last Pick: "
-        f"#{last_pick['overall_pick']} — "
-        f"{last_pick['owner']} selected "
-        f"{last_pick['player']}"
+    st.warning(
+        "Reset Draft removes ALL recorded "
+        "draft selections but leaves every "
+        "keeper unchanged."
     )
+
+    st.write(
+        "Use this after a practice draft "
+        "to return Fantasy War Room to the "
+        "keeper-only starting state."
+    )
+
+
+    confirm_reset = st.checkbox(
+        "I understand that all recorded "
+        "draft picks will be erased."
+    )
+
+
+    if st.button(
+        "Reset Draft Now",
+        disabled=(
+            not confirm_reset
+        )
+    ):
+
+        try:
+
+            reset_draft_history()
+
+            # Clear only draft picks.
+            #
+            # Keeper cache remains untouched.
+            st.session_state.draft_history = []
+
+            st.session_state.draft_store_status = (
+                "CONNECTED"
+            )
+
+            st.session_state.draft_store_error = (
+                None
+            )
+
+            st.session_state.flash_message = (
+                "Draft reset successfully. "
+                "All keepers remain loaded."
+            )
+
+            st.rerun()
+
+
+        except Exception as error:
+
+            st.session_state.draft_store_status = (
+                "ERROR"
+            )
+
+            st.session_state.draft_store_error = (
+                str(error)
+            )
+
+            st.error(
+                "Draft reset failed."
+            )
+
+            st.exception(
+                error
+            )
 
 
 st.divider()
@@ -652,7 +1378,9 @@ st.divider()
 # MY TEAM
 # ============================================================
 
-st.subheader("⭐ My Team")
+st.subheader(
+    "⭐ My Team"
+)
 
 
 if not my_team.empty:
@@ -668,61 +1396,35 @@ if not my_team.empty:
     )
 
 
-    team_columns = st.columns(
-        min(
-            len(my_team),
-            4
-        )
-    )
-
-
-    for index, (_, player) in enumerate(
+    for _, player in (
         my_team.iterrows()
     ):
 
-        column = team_columns[
-            index
-            % len(team_columns)
-        ]
+        keeper_marker = ""
 
 
-        with column:
+        if (
+            player["player"]
+            in scott_keeper_names
+        ):
 
-            if (
-                player["player"]
-                in scott_keeper_names
-            ):
-
-                keeper_marker = "⭐ "
-
-            else:
-
-                keeper_marker = ""
-
-
-            st.markdown(
-                f"### {keeper_marker}"
-                f"{player['player']}"
+            keeper_marker = (
+                "⭐ Keeper"
             )
 
 
-            st.write(
-                f"{player['position_rank']} | "
-                f"{player['team']}"
-            )
-
-
-            st.caption(
-                f"Overall Rank "
-                f"#{int(player['rank'])} | "
-                f"Bye {int(player['bye'])}"
-            )
+        st.write(
+            f"**{player['position_rank']} — "
+            f"{player['player']}** "
+            f"({player['team']}) "
+            f"{keeper_marker}"
+        )
 
 
 else:
 
-    st.warning(
-        "Scott currently has no players."
+    st.caption(
+        "No players assigned."
     )
 
 
@@ -733,15 +1435,6 @@ else:
 st.write(
     "### Starting Lineup Needs"
 )
-
-
-roster_requirements = {
-    "QB": 1,
-    "RB": 2,
-    "WR_TE": 3,
-    "PK": 1,
-    "DEF": 1
-}
 
 
 qb_count = len(
@@ -788,84 +1481,58 @@ def_count = len(
 )
 
 
-qb_needed = max(
-    0,
-    roster_requirements["QB"]
-    - qb_count
-)
+needs = {
+    "QB":
+        max(
+            0,
+            1 - qb_count
+        ),
+
+    "RB":
+        max(
+            0,
+            2 - rb_count
+        ),
+
+    "WR/TE":
+        max(
+            0,
+            3 - wr_te_count
+        ),
+
+    "PK":
+        max(
+            0,
+            1 - pk_count
+        ),
+
+    "DEF":
+        max(
+            0,
+            1 - def_count
+        )
+}
 
 
-rb_needed = max(
-    0,
-    roster_requirements["RB"]
-    - rb_count
-)
-
-
-wr_te_needed = max(
-    0,
-    roster_requirements["WR_TE"]
-    - wr_te_count
-)
-
-
-pk_needed = max(
-    0,
-    roster_requirements["PK"]
-    - pk_count
-)
-
-
-def_needed = max(
-    0,
-    roster_requirements["DEF"]
-    - def_count
-)
-
-
-need_col1, need_col2, need_col3, need_col4, need_col5 = (
+need_columns = (
     st.columns(5)
 )
 
 
-with need_col1:
+for column, (
+    position,
+    need
+) in zip(
+    need_columns,
+    needs.items()
+):
 
-    st.metric(
-        "QB Needed",
-        qb_needed
-    )
+    with column:
 
-
-with need_col2:
-
-    st.metric(
-        "RB Needed",
-        rb_needed
-    )
-
-
-with need_col3:
-
-    st.metric(
-        "WR/TE Needed",
-        wr_te_needed
-    )
-
-
-with need_col4:
-
-    st.metric(
-        "PK Needed",
-        pk_needed
-    )
-
-
-with need_col5:
-
-    st.metric(
-        "DEF Needed",
-        def_needed
-    )
+        st.metric(
+            f"{position} Needed",
+            need
+        )
 
 
 st.divider()
@@ -898,21 +1565,6 @@ if not available_players.empty:
     )
 
 
-    st.write(
-        f"Team: "
-        f"{top_overall['team']} | "
-        f"ADP: "
-        f"{top_overall['average_adp']} | "
-        f"Projected Points: "
-        f"{top_overall['projected_points']}"
-    )
-
-
-st.write(
-    "### Top Player by Position"
-)
-
-
 position_list = [
     "QB",
     "RB",
@@ -923,8 +1575,10 @@ position_list = [
 ]
 
 
-position_columns = st.columns(
-    len(position_list)
+position_columns = (
+    st.columns(
+        len(position_list)
+    )
 )
 
 
@@ -956,55 +1610,209 @@ for column, position in zip(
                 f"**{position}**"
             )
 
-
             st.write(
-                top_player["player"]
+                top_player[
+                    "player"
+                ]
             )
-
 
             st.caption(
                 f"Rank "
-                f"#{int(top_player['rank'])} | "
-                f"{top_player['team']} | "
-                f"ADP "
-                f"{top_player['average_adp']}"
+                f"#{int(top_player['rank'])}"
             )
 
 
 st.divider()
+
+
+# ============================================================
+# TEAM ROSTERS
+# ============================================================
+
+with st.expander(
+    "👥 Team Rosters",
+    expanded=False
+):
+
+    st.write(
+        "Each roster contains that owner's "
+        "keepers plus all recorded draft picks."
+    )
+
+
+    for owner in owners:
+
+        owner_keeper_names = [
+            keeper["player"]
+            for keeper in keepers
+            if keeper["owner"]
+            == owner
+        ]
+
+
+        owner_drafted_names = [
+            pick["player"]
+            for pick in draft_history
+            if pick["owner"]
+            == owner
+        ]
+
+
+        roster_names = (
+            owner_keeper_names
+            + owner_drafted_names
+        )
+
+
+        st.markdown(
+            f"### {owner}"
+        )
+
+
+        if roster_names:
+
+            roster_players = players[
+                players["player"].isin(
+                    roster_names
+                )
+            ].copy()
+
+
+            roster_players = (
+                roster_players
+                .sort_values(
+                    [
+                        "position",
+                        "rank"
+                    ]
+                )
+            )
+
+
+            qb_total = len(
+                roster_players[
+                    roster_players["position"]
+                    == "QB"
+                ]
+            )
+
+
+            rb_total = len(
+                roster_players[
+                    roster_players["position"]
+                    == "RB"
+                ]
+            )
+
+
+            wr_te_total = len(
+                roster_players[
+                    roster_players["position"].isin(
+                        [
+                            "WR",
+                            "TE"
+                        ]
+                    )
+                ]
+            )
+
+
+            pk_total = len(
+                roster_players[
+                    roster_players["position"]
+                    == "PK"
+                ]
+            )
+
+
+            def_total = len(
+                roster_players[
+                    roster_players["position"]
+                    == "DEF"
+                ]
+            )
+
+
+            st.caption(
+                f"Players: "
+                f"{len(roster_players)} | "
+                f"QB {qb_total} | "
+                f"RB {rb_total} | "
+                f"WR/TE {wr_te_total} | "
+                f"PK {pk_total} | "
+                f"DEF {def_total}"
+            )
+
+
+            for _, player in (
+                roster_players.iterrows()
+            ):
+
+                keeper_label = ""
+
+
+                if (
+                    player["player"]
+                    in owner_keeper_names
+                ):
+
+                    keeper_label = (
+                        " ⭐ Keeper"
+                    )
+
+
+                st.write(
+                    f"{player['position_rank']} — "
+                    f"{player['player']} "
+                    f"({player['team']})"
+                    f"{keeper_label}"
+                )
+
+
+        else:
+
+            st.caption(
+                "No players assigned."
+            )
+
+
+        st.divider()
 
 
 # ============================================================
 # DRAFT HISTORY
 # ============================================================
 
-st.subheader("📋 Draft History")
+with st.expander(
+    "📋 Draft History",
+    expanded=False
+):
+
+    if draft_history:
+
+        for pick in draft_history:
+
+            st.write(
+                f"**{pick['pick_label']}** | "
+                f"Round "
+                f"{pick['round']} | "
+                f"{pick['owner']} — "
+                f"{pick['player']}"
+            )
 
 
-if draft_history:
+    else:
 
-    for pick in draft_history:
-
-        st.write(
-            f"#{pick['overall_pick']} | "
-            f"Round {pick['round']} | "
-            f"{pick['owner']} — "
-            f"{pick['player']}"
+        st.caption(
+            "Draft history is empty."
         )
-
-
-else:
-
-    st.caption(
-        "Draft history is empty."
-    )
 
 
 st.divider()
 
 
 # ============================================================
-# AVAILABLE PLAYER FILTERS
+# PLAYER BROWSER
 # ============================================================
 
 st.subheader(
@@ -1013,27 +1821,21 @@ st.subheader(
 
 
 search_text = st.text_input(
-    "Search Player",
-    placeholder=(
-        "Search available players"
-    )
+    "Search Player"
 )
 
 
-position_options = [
-    "ALL",
-    "QB",
-    "RB",
-    "WR",
-    "TE",
-    "PK",
-    "DEF"
-]
-
-
-selected_position = st.selectbox(
+position_filter = st.selectbox(
     "Position",
-    position_options
+    [
+        "ALL",
+        "QB",
+        "RB",
+        "WR",
+        "TE",
+        "PK",
+        "DEF"
+    ]
 )
 
 
@@ -1042,12 +1844,12 @@ filtered_players = (
 )
 
 
-if selected_position != "ALL":
+if position_filter != "ALL":
 
     filtered_players = (
         filtered_players[
             filtered_players["position"]
-            == selected_position
+            == position_filter
         ]
     )
 
@@ -1072,125 +1874,6 @@ st.write(
 )
 
 
-# ============================================================
-# PLAYER DETAILS
-# ============================================================
-
-st.subheader(
-    "Player Details"
-)
-
-
-player_options = (
-    filtered_players["player"]
-    .tolist()
-)
-
-
-if player_options:
-
-    selected_player_name = (
-        st.selectbox(
-            "Select Player",
-            player_options
-        )
-    )
-
-
-    selected_player = (
-        filtered_players[
-            filtered_players["player"]
-            == selected_player_name
-        ]
-        .iloc[0]
-    )
-
-
-    detail_col1, detail_col2, detail_col3, detail_col4 = (
-        st.columns(4)
-    )
-
-
-    with detail_col1:
-
-        st.metric(
-            "Overall Rank",
-            int(
-                selected_player[
-                    "rank"
-                ]
-            )
-        )
-
-        st.metric(
-            "Team",
-            selected_player[
-                "team"
-            ]
-        )
-
-
-    with detail_col2:
-
-        st.metric(
-            "Position",
-            selected_player[
-                "position_rank"
-            ]
-        )
-
-        st.metric(
-            "Bye Week",
-            int(
-                selected_player[
-                    "bye"
-                ]
-            )
-        )
-
-
-    with detail_col3:
-
-        st.metric(
-            "Projected Points",
-            selected_player[
-                "projected_points"
-            ]
-        )
-
-        st.metric(
-            "Average ADP",
-            selected_player[
-                "average_adp"
-            ]
-        )
-
-
-    with detail_col4:
-
-        st.metric(
-            "VOR",
-            selected_player[
-                "vor"
-            ]
-        )
-
-
-else:
-
-    st.warning(
-        "No players match "
-        "the current filters."
-    )
-
-
-st.divider()
-
-
-# ============================================================
-# PLAYER TABLE
-# ============================================================
-
 display_columns = [
     "rank",
     "player",
@@ -1213,11 +1896,8 @@ st.dataframe(
 )
 
 
-st.divider()
-
-
 # ============================================================
-# SCORING ENGINE TEST
+# SCORING ENGINE CHECK
 # ============================================================
 
 with st.expander(
@@ -1225,16 +1905,27 @@ with st.expander(
 ):
 
     test_stats = {
-        "length_of_passing_td": [
-            12,
-            38,
-            62
-        ],
-        "passing_yards": 345,
-        "passing_interceptions_thrown": 1,
-        "passing_two_point_conversions": 1,
-        "number_of_rushing_tds": 1,
-        "rushing_yards": 42
+        "length_of_passing_td":
+            [
+                12,
+                38,
+                62
+            ],
+
+        "passing_yards":
+            345,
+
+        "passing_interceptions_thrown":
+            1,
+
+        "passing_two_point_conversions":
+            1,
+
+        "number_of_rushing_tds":
+            1,
+
+        "rushing_yards":
+            42
     }
 
 
@@ -1254,13 +1945,11 @@ with st.expander(
     if score == 33:
 
         st.success(
-            "Scoring engine "
-            "connected successfully."
+            "Scoring engine connected successfully."
         )
 
     else:
 
         st.error(
-            "Scoring engine returned "
-            "an unexpected result."
+            "Unexpected scoring result."
         )
