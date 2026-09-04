@@ -16,6 +16,10 @@ from src.draft_store import (
 from src.recommendation_engine import (
     recommend_scott_pick,
 )
+from src.risk_engine import (
+    load_player_risks,
+    get_player_risk,
+)
 
 
 # ============================================================
@@ -76,6 +80,13 @@ all_player_names = (
     players["player"]
     .tolist()
 )
+
+
+# ============================================================
+# PLAYER RISK DATA
+# ============================================================
+
+player_risks = load_player_risks()
 
 
 # ============================================================
@@ -930,6 +941,75 @@ if not draft_complete:
     f"({recommendation['position']} — "
     f"{recommendation['team']})"
 )
+
+
+            player_risk = get_player_risk(
+                recommendation["player"],
+                player_risks
+            )
+
+            if player_risk:
+
+                risk_level = player_risk.get(
+                    "level",
+                    "INFO"
+                ).upper()
+
+                risk_category = player_risk.get(
+                    "category",
+                    "STATUS"
+                ).upper()
+
+                risk_summary = player_risk.get(
+                    "summary",
+                    "Risk note available."
+                )
+
+                risk_source = player_risk.get(
+                    "source",
+                    ""
+                )
+
+                risk_updated = player_risk.get(
+                    "updated",
+                    ""
+                )
+
+                risk_message = (
+                    f"{risk_category} — "
+                    f"{risk_summary}"
+                )
+
+                if risk_level == "HIGH":
+                    st.error(
+                        f"🚨 HIGH RISK: {risk_message}"
+                    )
+
+                elif risk_level == "MEDIUM":
+                    st.warning(
+                        f"⚠️ MEDIUM RISK: {risk_message}"
+                    )
+
+                else:
+                    st.info(
+                        f"ℹ️ {risk_level} RISK: "
+                        f"{risk_message}"
+                    )
+
+                source_parts = [
+                    item
+                    for item in [
+                        risk_source,
+                        risk_updated
+                    ]
+                    if item
+                ]
+
+                if source_parts:
+                    st.caption(
+                        "Risk source: "
+                        + " | ".join(source_parts)
+                    )
 
 
             st.write(
