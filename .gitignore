@@ -1,4 +1,4 @@
 .streamlit/secrets/
 .streamlit/secrets.toml
 __pycache__/
-*.pyc
+*.pycdata/players/sleeper_players_cache.json
